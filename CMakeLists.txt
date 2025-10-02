@@ -11,5 +11,10 @@ find_package(VTK REQUIRED
 )
 include(${VTK_USE_FILE})
 
-add_executable(frd2vtu frd2vtu.cpp)
-target_link_libraries(frd2vtu PRIVATE ${VTK_LIBRARIES})
+# Create library
+add_library(frd2vtu_lib frd2vtu.cpp)
+target_link_libraries(frd2vtu_lib PRIVATE ${VTK_LIBRARIES})
+
+# Create executable
+add_executable(frd2vtu main.cpp)
+target_link_libraries(frd2vtu PRIVATE frd2vtu_lib)

@@ -1,3 +1,4 @@
+#include "frd2vtu.h"
 #include <vtkSmartPointer.h>
 #include <vtkUnstructuredGrid.h>
 #include <vtkPoints.h>
@@ -22,18 +23,10 @@ void trim(std::string& s) {
     }).base(), s.end());
 }
 
-int main(int argc, char* argv[]) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " input.frd output.vtu" << std::endl;
-        return EXIT_FAILURE;
-    }
-
-    std::string frd_filename = argv[1];
-    std::string vtu_filename = argv[2];
+int convertFrdToVtu(const std::string& frd_filename, const std::string& vtu_filename) {
 
     std::ifstream frd_file(frd_filename);
     if (!frd_file.is_open()) {
-        std::cerr << "Error: Cannot open file " << frd_filename << std::endl;
         return EXIT_FAILURE;
     }
 
@@ -178,7 +171,7 @@ int main(int argc, char* argv[]) {
     writer->SetDataModeToAscii(); // テキスト形式で出力
     writer->Write();
 
-    std::cout << "Successfully converted " << frd_filename << " to " << vtu_filename << std::endl;
 
     return EXIT_SUCCESS;
 }
+
