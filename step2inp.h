@@ -16,9 +16,12 @@ public:
     ~Step2Inp();
     
     int convert(const std::string& step_file, const std::vector<BoundaryCondition>& boundary_conditions);
+    void calculateNodeForcesByArea(std::ofstream& f, int surface_number, double total_force = 100.0, const std::vector<double>& force_direction = {0.0, 0.0, -1.0});
 
 private:
     void writeForceBoundaryCondition(std::ofstream& f, const std::vector<int>& node_tags, int surface_number);
+    void writeForceBoundaryConditionWithArea(std::ofstream& f, int surface_number, double total_force = 100.0, const std::vector<double>& force_direction = {0.0, 0.0, -1.0});
+    double calculateElementArea(const std::vector<std::vector<double>>& coords);
     void writeEall(std::ofstream& f);
     void writeMaterialElementSet(std::ofstream& f);
     void writeConstraintNodeSet(std::ofstream& f, const std::vector<int>& node_tags);
