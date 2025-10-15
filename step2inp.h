@@ -5,9 +5,14 @@
 #include <vector>
 #include <fstream>
 
-struct BoundaryCondition {
-    std::string type;
+struct ConstraintCondition {
     int surface_number;
+};
+
+struct LoadCondition {
+    int surface_number;
+    double magnitude;
+    std::vector<double> direction;
 };
 
 class Step2Inp {
@@ -15,7 +20,7 @@ public:
     Step2Inp();
     ~Step2Inp();
     
-    int convert(const std::string& step_file, const std::vector<BoundaryCondition>& boundary_conditions);
+    int convert(const std::string& step_file, const std::vector<ConstraintCondition>& constraints, const std::vector<LoadCondition>& loads);
     void calculateNodeForcesByArea(std::ofstream& f, int surface_number, double total_force = 100.0, const std::vector<double>& force_direction = {0.0, 0.0, -1.0});
 
 private:
@@ -33,12 +38,12 @@ private:
     void writeOutputs(std::ofstream& f);
     void writeEndStep(std::ofstream& f);
     
-    std::vector<BoundaryCondition> parseBoundaryConditions(const std::vector<std::string>& args);
     std::string getBaseFilename(const std::string& filename);
 };
 
-// Utility function
-BoundaryCondition createBoundaryCondition(const std::string& type, int surface_number);
-int convertStepToInp(const std::string& step_file, const std::vector<BoundaryCondition>& conditions);
+// Utility functions
+ConstraintCondition createConstraintCondition(int surface_number);
+LoadCondition createLoadCondition(int surface_number, double magnitude, const std::vector<double>& direction);
+int convertStepToInp(const std::string& step_file, const std::vector<ConstraintCondition>& constraints, const std::vector<LoadCondition>& loads);
 
 #endif // STEP2INP_H

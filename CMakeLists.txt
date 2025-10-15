@@ -13,6 +13,9 @@ find_package(VTK REQUIRED
 )
 include(${VTK_USE_FILE})
 
+# Find nlohmann-json
+find_package(nlohmann_json 3.2.0 REQUIRED)
+
 # Find Gmsh
 find_path(GMSH_INCLUDE_DIR 
     NAMES gmsh.h
@@ -63,9 +66,15 @@ add_library(step2inp_lib step2inp.cpp)
 target_include_directories(step2inp_lib PRIVATE ${GMSH_INCLUDE_DIR})
 target_link_libraries(step2inp_lib PRIVATE ${GMSH_LIBRARY})
 
+# Create simulation config library
+add_library(simulation_config_lib simulation_config.cpp)
+target_link_libraries(simulation_config_lib PRIVATE nlohmann_json::nlohmann_json)
+
 # Create main executable
 add_executable(strecsfem main.cpp)
 target_link_libraries(strecsfem PRIVATE 
     frd2vtu_lib 
     step2inp_lib
+    simulation_config_lib
+    nlohmann_json::nlohmann_json
 )

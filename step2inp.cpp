@@ -280,44 +280,13 @@ void Step2Inp::writeEndStep(std::ofstream& f) {
     f << "*END STEP\n";
 }
 
-std::vector<BoundaryCondition> Step2Inp::parseBoundaryConditions(const std::vector<std::string>& args) {
-    std::vector<BoundaryCondition> boundary_conditions;
-    
-    for (size_t i = 2; i < args.size(); ++i) {
-        const std::string& arg = args[i];
-        size_t colon_pos = arg.find(':');
-        
-        if (colon_pos == std::string::npos) {
-            std::cerr << "エラー: 境界条件は 'タイプ:面番号' の形式で指定してください: " << arg << std::endl;
-            return {};
-        }
-        
-        std::string bc_type = arg.substr(0, colon_pos);
-        std::string surface_str = arg.substr(colon_pos + 1);
-        
-        if (bc_type != "force" && bc_type != "fixed") {
-            std::cerr << "エラー: 境界条件タイプは 'force' または 'fixed' を指定してください: " << bc_type << std::endl;
-            return {};
-        }
-        
-        try {
-            int surface_number = std::stoi(surface_str);
-            boundary_conditions.push_back({bc_type, surface_number});
-        } catch (const std::invalid_argument&) {
-            std::cerr << "エラー: 面番号は整数で指定してください: " << surface_str << std::endl;
-            return {};
-        }
-    }
-    
-    return boundary_conditions;
-}
 
 std::string Step2Inp::getBaseFilename(const std::string& filename) {
     std::filesystem::path path(filename);
     return path.stem().string();
 }
 
-int Step2Inp::convert(const std::string& step_file, const std::vector<BoundaryCondition>& boundary_conditions) {
+int Step2Inp::convert(const std::string& step_file, const std::vector<ConstraintCondition>& constraints, const std::vector<LoadCondition>& loads) {
     gmsh::initialize();
     
     try {
@@ -371,9 +340,19 @@ int Step2Inp::convert(const std::string& step_file, const std::vector<BoundaryCo
             std::cout << "  Surface " << tag << std::endl;
         }
         
-        for (const auto& bc : boundary_conditions) {
-            if (std::find(surface_tags.begin(), surface_tags.end(), bc.surface_number) == surface_tags.end()) {
-                std::cerr << "エラー: Surface " << bc.surface_number << " が見つかりません。" << std::endl;
+        // Check constraint surfaces
+        for (const auto& constraint : constraints) {
+            if (std::find(surface_tags.begin(), surface_tags.end(), constraint.surface_number) == surface_tags.end()) {
+                std::cerr << "エラー: Surface " << constraint.surface_number << " が見つかりません。" << std::endl;
+                gmsh::finalize();
+                return 1;
+            }
+        }
+        
+        // Check load surfaces
+        for (const auto& load : loads) {
+            if (std::find(surface_tags.begin(), surface_tags.end(), load.surface_number) == surface_tags.end()) {
+                std::cerr << "エラー: Surface " << load.surface_number << " が見つかりません。" << std::endl;
                 gmsh::finalize();
                 return 1;
             }
@@ -389,16 +368,15 @@ int Step2Inp::convert(const std::string& step_file, const std::vector<BoundaryCo
         writeEall(f);
         writeMaterialElementSet(f);
         
-        for (const auto& bc : boundary_conditions) {
-            if (bc.type == "fixed") {
-                std::vector<std::size_t> node_tags;
-                std::vector<double> coord, parametricCoord;
-                gmsh::model::mesh::getNodes(node_tags, coord, parametricCoord, 2, bc.surface_number, true);
-                
-                std::vector<int> int_node_tags(node_tags.begin(), node_tags.end());
-                std::cout << "Surface " << bc.surface_number << " のノード数: " << node_tags.size() << std::endl;
-                writeConstraintNodeSet(f, int_node_tags);
-            }
+        // Write constraint conditions
+        for (const auto& constraint : constraints) {
+            std::vector<std::size_t> node_tags;
+            std::vector<double> coord, parametricCoord;
+            gmsh::model::mesh::getNodes(node_tags, coord, parametricCoord, 2, constraint.surface_number, true);
+            
+            std::vector<int> int_node_tags(node_tags.begin(), node_tags.end());
+            std::cout << "Surface " << constraint.surface_number << " のノード数: " << node_tags.size() << std::endl;
+            writeConstraintNodeSet(f, int_node_tags);
         }
         
         writePhysicalConstants(f);
@@ -407,19 +385,17 @@ int Step2Inp::convert(const std::string& step_file, const std::vector<BoundaryCo
         writeStep(f);
         writeFixedConstraints(f);
         
-        for (const auto& bc : boundary_conditions) {
-            if (bc.type == "force") {
-                std::vector<std::size_t> node_tags;
-                std::vector<double> coord, parametricCoord;
-                gmsh::model::mesh::getNodes(node_tags, coord, parametricCoord, 2, bc.surface_number, true);
-                
-                std::cout << "Surface " << bc.surface_number << " のノード数: " << node_tags.size() << std::endl;
-                
-                // Use area-based force calculation with default values (100N in -Z direction)
-                std::vector<double> force_direction = {0.0, 0.0, -1.0};
-                writeForceBoundaryConditionWithArea(f, bc.surface_number, 500.0, force_direction);
-                std::cout << "Surface " << bc.surface_number << " に寄与面積に基づく力の境界条件を追加しました" << std::endl;
-            }
+        // Write load conditions
+        for (const auto& load : loads) {
+            std::vector<std::size_t> node_tags;
+            std::vector<double> coord, parametricCoord;
+            gmsh::model::mesh::getNodes(node_tags, coord, parametricCoord, 2, load.surface_number, true);
+            
+            std::cout << "Surface " << load.surface_number << " のノード数: " << node_tags.size() << std::endl;
+            
+            // Use area-based force calculation with values from load condition
+            writeForceBoundaryConditionWithArea(f, load.surface_number, load.magnitude, load.direction);
+            std::cout << "Surface " << load.surface_number << " に寄与面積に基づく力の境界条件を追加しました" << std::endl;
         }
         
         writeOutputs(f);
@@ -429,8 +405,11 @@ int Step2Inp::convert(const std::string& step_file, const std::vector<BoundaryCo
         
         std::cout << "変換完了（境界条件追加済み): " << step_file << " -> " << inp_file << std::endl;
         std::cout << "適用された境界条件:" << std::endl;
-        for (const auto& bc : boundary_conditions) {
-            std::cout << "  Surface " << bc.surface_number << ": " << bc.type << std::endl;
+        for (const auto& constraint : constraints) {
+            std::cout << "  Surface " << constraint.surface_number << ": fixed" << std::endl;
+        }
+        for (const auto& load : loads) {
+            std::cout << "  Surface " << load.surface_number << ": force (magnitude: " << load.magnitude << ")" << std::endl;
         }
         
     } catch (const std::exception& e) {
@@ -443,11 +422,15 @@ int Step2Inp::convert(const std::string& step_file, const std::vector<BoundaryCo
     return 0;
 }
 
-BoundaryCondition createBoundaryCondition(const std::string& type, int surface_number) {
-    return {type, surface_number};
+ConstraintCondition createConstraintCondition(int surface_number) {
+    return {surface_number};
 }
 
-int convertStepToInp(const std::string& step_file, const std::vector<BoundaryCondition>& conditions) {
+LoadCondition createLoadCondition(int surface_number, double magnitude, const std::vector<double>& direction) {
+    return {surface_number, magnitude, direction};
+}
+
+int convertStepToInp(const std::string& step_file, const std::vector<ConstraintCondition>& constraints, const std::vector<LoadCondition>& loads) {
     Step2Inp converter;
-    return converter.convert(step_file, conditions);
+    return converter.convert(step_file, constraints, loads);
 }

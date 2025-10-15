@@ -44,3 +44,4 @@
 build/
 resources/
 .DS_Store
+.vscode
