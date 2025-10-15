@@ -315,6 +315,7 @@ int Step2Inp::convert(const std::string& step_file, const std::vector<Constraint
         gmsh::option::setNumber("Mesh.HighOrderOptimize", 2);
         
         std::cout << "3Dメッシュを生成中..." << std::endl;
+        gmsh::option::setNumber("Mesh.Algorithm3D", 10); // HXT
         gmsh::model::mesh::generate(3);
         gmsh::model::mesh::setOrder(2);
         gmsh::model::mesh::optimize("HighOrderElastic");
