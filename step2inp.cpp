@@ -105,13 +105,16 @@ void Step2Inp::writeForceBoundaryConditionWithArea(std::ofstream& f, int surface
     std::map<std::size_t, double> node_areas;  // 各節点の寄与面積
     double total_surface_area = 0.0;  // 面全体の面積
     
-    // 指定された面の要素を取得
+    // 指定された面の要素タグとノードタグを取得
     std::vector<int> element_types;
-    std::vector<std::vector<std::size_t>> element_node_tags;
-    std::vector<std::vector<std::size_t>> node_tags;
-    gmsh::model::mesh::getElements(element_types, element_node_tags, node_tags, 2, surface_number);
+    std::vector<std::vector<std::size_t>> element_tags;  // 要素番号
+    std::vector<std::vector<std::size_t>> node_tags;     // 節点番号
+    gmsh::model::mesh::getElements(element_types, element_tags, node_tags, 2, surface_number);
+    
     
     // ステップ2: 全要素をループして面積を計算・分配
+    std::vector<double> element_areas;  // 要素面積の記録用
+    
     for (size_t i = 0; i < element_types.size(); ++i) {
         int elem_type = element_types[i];
         
@@ -122,18 +125,20 @@ void Step2Inp::writeForceBoundaryConditionWithArea(std::ofstream& f, int surface
         gmsh::model::mesh::getElementProperties(elem_type, element_name, dim, order, num_nodes, parametric_coords, num_primary_nodes);
         
         // この要素タイプの全要素を処理
-        const auto& elem_nodes = element_node_tags[i];
-        int num_elements = elem_nodes.size() / num_nodes;
+        const auto& current_element_tags = element_tags[i];
+        int num_elements = current_element_tags.size();
         
         for (int j = 0; j < num_elements; ++j) {
-            // 要素を構成する節点のタグを取得
-            int start_idx = j * num_nodes;
-            std::vector<std::size_t> element_node_list(elem_nodes.begin() + start_idx, 
-                                                      elem_nodes.begin() + start_idx + num_nodes);
+            std::size_t element_tag = current_element_tags[j];
+            
+            // 要素の節点タグを取得
+            std::vector<std::size_t> element_node_tags;
+            int element_type_out, entity_dim, entity_tag;
+            gmsh::model::mesh::getElement(element_tag, element_type_out, element_node_tags, entity_dim, entity_tag);
             
             // 節点の座標を取得
             std::vector<std::vector<double>> coords;
-            for (std::size_t node_tag : element_node_list) {
+            for (std::size_t node_tag : element_node_tags) {
                 std::vector<double> coord;
                 std::vector<double> parametric_coord;
                 int entity_dim, entity_tag;
@@ -149,10 +154,14 @@ void Step2Inp::writeForceBoundaryConditionWithArea(std::ofstream& f, int surface
             // 要素の面積を計算
             double element_area = calculateElementArea(coords);
             total_surface_area += element_area;
+            element_areas.push_back(element_area);  // 面積を記録
+            
             
             // 要素面積を節点に分配
             double area_portion = element_area / num_nodes;
-            for (std::size_t node_tag : element_node_list) {
+            std::cout << "  各ノードへの面積分配: " << std::fixed << std::setprecision(8) << area_portion << std::endl;
+            
+            for (std::size_t node_tag : element_node_tags) {
                 node_areas[node_tag] += area_portion;
             }
         }
