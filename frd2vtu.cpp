@@ -12,6 +12,7 @@
 #include <string>
 #include <vector>
 #include <sstream>
+#include <cmath>
 
 // 文字列の先頭と末尾の空白を削除するヘルパー関数
 void trim(std::string& s) {
@@ -50,6 +51,10 @@ int convertFrdToVtu(const std::string& frd_filename, const std::string& vtu_file
     auto error = vtkSmartPointer<vtkDoubleArray>::New();
     error->SetName("Estimation_Error");
     error->SetNumberOfComponents(1);
+
+    auto vonMisesStress = vtkSmartPointer<vtkDoubleArray>::New();
+    vonMisesStress->SetName("von Mises Stress");
+    vonMisesStress->SetNumberOfComponents(1);
 
     // --- ファイル解析 ---
     std::string line;
@@ -130,7 +135,22 @@ int convertFrdToVtu(const std::string& frd_filename, const std::string& vtu_file
                     int nodeId;
                     double s1, s2, s3, s4, s5, s6;
                     ss >> nodeId >> s1 >> s2 >> s3 >> s4 >> s5 >> s6;
+                    
+                    // MPaからPaに変換（1 MPa = 1e6 Pa）
+                    s1 *= 1e6; s2 *= 1e6; s3 *= 1e6;
+                    s4 *= 1e6; s5 *= 1e6; s6 *= 1e6;
+                    
                     stress->InsertNextTuple6(s1, s2, s3, s4, s5, s6);
+                    
+                    // von Mises応力を計算
+                    // von Mises = sqrt(0.5 * ((s1-s2)^2 + (s2-s3)^2 + (s3-s1)^2 + 6*(s4^2 + s5^2 + s6^2)))
+                    double vonMises = std::sqrt(0.5 * (
+                        (s1 - s2) * (s1 - s2) + 
+                        (s2 - s3) * (s2 - s3) + 
+                        (s3 - s1) * (s3 - s1) + 
+                        6.0 * (s4 * s4 + s5 * s5 + s6 * s6)
+                    ));
+                    vonMisesStress->InsertNextTuple1(vonMises);
                     break;
                 }
                 case ParserState::STRAIN: {
@@ -162,6 +182,7 @@ int convertFrdToVtu(const std::string& frd_filename, const std::string& vtu_file
     unstructuredGrid->GetPointData()->AddArray(stress);
     unstructuredGrid->GetPointData()->AddArray(strain);
     unstructuredGrid->GetPointData()->AddArray(error);
+    unstructuredGrid->GetPointData()->AddArray(vonMisesStress);
 
 
     // --- VTUファイルに書き出し ---
