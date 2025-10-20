@@ -61,9 +61,19 @@ message(STATUS "Gmsh include dir: ${GMSH_INCLUDE_DIR}")
 add_library(frd2vtu_lib frd2vtu.cpp)
 target_link_libraries(frd2vtu_lib PRIVATE ${VTK_LIBRARIES})
 
-# Create step2inp library
-add_library(step2inp_lib step2inp.cpp)
-target_include_directories(step2inp_lib PRIVATE ${GMSH_INCLUDE_DIR})
+# Create step2inp library with modular components
+add_library(step2inp_lib
+    step2inp.cpp
+    step2inp/MeshGenerator.cpp
+    step2inp/ConstraintSetter.cpp
+    step2inp/MaterialSetter.cpp
+    step2inp/LoadConditionSetter.cpp
+    step2inp/InpWriter.cpp
+)
+target_include_directories(step2inp_lib
+    PRIVATE ${GMSH_INCLUDE_DIR}
+    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
+)
 target_link_libraries(step2inp_lib PRIVATE ${GMSH_LIBRARY})
 
 # Create simulation config library
