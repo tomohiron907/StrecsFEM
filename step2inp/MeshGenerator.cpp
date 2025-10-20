@@ -4,9 +4,9 @@
 #include <algorithm>
 
 MeshGenerator::MeshGenerator()
-    : char_length_min_(4.0)
-    , char_length_max_(20.0)
-    , mesh_algorithm_(10)  // HXT algorithm
+    : char_length_min_(1.0)
+    , char_length_max_(5.0)
+    , mesh_algorithm_(1)  
     , mesh_order_(2)
 {
 }
